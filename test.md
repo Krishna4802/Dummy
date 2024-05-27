@@ -54,3 +54,39 @@ BEGIN
     );
 END;
 GO
+
+
+
+
+
+
+        CREATE FUNCTION dbo.GetMiddleName (
+            @FirstName NVARCHAR(MAX),
+            @MiddleName NVARCHAR(MAX),
+            @LastName NVARCHAR(MAX)
+        )
+        RETURNS NVARCHAR(MAX)
+        AS
+        BEGIN
+            DECLARE @FirstNameParts NVARCHAR(MAX);
+            DECLARE @LastNameParts NVARCHAR(MAX);
+            
+            -- Extracting the middle component from the first name
+            SET @FirstNameParts = 
+                CASE
+                    WHEN CHARINDEX(' ', @FirstName) = 0 THEN ''
+                    ELSE SUBSTRING(@FirstName, CHARINDEX(' ', @FirstName) + 1, LEN(@FirstName) - CHARINDEX(' ', @FirstName))
+                END;
+            
+            -- Extracting the first part from the last name
+            SET @LastNameParts = 
+                CASE
+                    WHEN CHARINDEX(' ', @LastName) = 0 THEN @LastName
+                    ELSE LEFT(@LastName, CHARINDEX(' ', @LastName) - 1)
+                END;
+            
+            -- Combine the extracted parts with the middle name
+            RETURN LTRIM(RTRIM(@FirstNameParts + ' ' + @MiddleName + ' ' + @LastNameParts));
+        END;
+        GO
+
