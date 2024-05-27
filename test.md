@@ -72,34 +72,29 @@ GO
             DECLARE @LastNameParts NVARCHAR(MAX);
             DECLARE @Result NVARCHAR(MAX);
             
-            -- Extracting the middle component from the first name
+            -- Extracting the middle components from the first name
             SET @FirstNameParts = 
                 CASE
                     WHEN CHARINDEX(' ', @FirstName) = 0 THEN ''
                     ELSE SUBSTRING(@FirstName, CHARINDEX(' ', @FirstName) + 1, LEN(@FirstName) - CHARINDEX(' ', @FirstName))
                 END;
             
-            -- Extracting the first part from the last name if there are two or more words
+            -- Extracting the parts from the last name except the last word
             SET @LastNameParts = 
                 CASE
                     WHEN CHARINDEX(' ', @LastName) = 0 THEN ''
-                    ELSE LEFT(@LastName, CHARINDEX(' ', @LastName) - 1)
+                    ELSE LEFT(@LastName, LEN(@LastName) - CHARINDEX(' ', REVERSE(@LastName)))
                 END;
             
             -- If the middle name is NULL, set it to an empty string
             SET @MiddleName = ISNULL(@MiddleName, '');
             
             -- Combine the extracted parts with the middle name
-            SET @Result = LTRIM(RTRIM(@FirstNameParts + ' ' + @MiddleName));
-            
-            -- Append the first part of the last name if there are two or more words in the last name
-            IF CHARINDEX(' ', @LastName) > 0
-            BEGIN
-                SET @Result = LTRIM(RTRIM(@Result + ' ' + @LastNameParts));
-            END
+            SET @Result = LTRIM(RTRIM(@FirstNameParts + ' ' + @MiddleName + ' ' + @LastNameParts));
             
             RETURN @Result;
         END;
         GO
+
 
 
