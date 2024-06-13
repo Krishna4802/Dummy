@@ -54,3 +54,9 @@
         -- Execute the generated SQL to drop the old history tables
         EXEC sp_executesql @SQL
     END
+
+
+
+
+    EXEC DropHistoryTables @BaseTableName = 'OldTable', @KeepCount = 1
+
