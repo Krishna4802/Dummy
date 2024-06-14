@@ -3,60 +3,47 @@
             @KeepCount INT
         AS
         BEGIN
+            SET NOCOUNT ON;
+        
             DECLARE @SQL NVARCHAR(MAX) = ''
             DECLARE @HistoryTable NVARCHAR(128)
-            DECLARE @DropTableSQL NVARCHAR(MAX)
+            DECLARE @RowCount INT
         
             -- Create a table to hold the history table names
-            CREATE TABLE #HistoryTables (TableName NVARCHAR(128))
+            CREATE TABLE #HistoryTables (TableName NVARCHAR(128), RowNum INT)
         
-            -- Insert history table names into the temp table
-            INSERT INTO #HistoryTables (TableName)
-            SELECT TABLE_NAME
+            -- Insert history table names into the temp table with row numbers
+            INSERT INTO #HistoryTables (TableName, RowNum)
+            SELECT TABLE_NAME, ROW_NUMBER() OVER (ORDER BY TABLE_NAME DESC) AS RowNum
             FROM INFORMATION_SCHEMA.TABLES
             WHERE TABLE_NAME LIKE @BaseTableName + '_history_%'
-            ORDER BY TABLE_NAME DESC
         
-            -- Declare a cursor to iterate over the history tables
-            DECLARE HistoryTableCursor CURSOR FOR
-            SELECT TableName
-            FROM #HistoryTables
+            -- Check how many history tables were found
+            SELECT * FROM #HistoryTables
         
-            -- Open the cursor
-            OPEN HistoryTableCursor
+            -- Determine the number of tables to delete
+            SELECT @RowCount = COUNT(*) - @KeepCount FROM #HistoryTables
         
-            -- Skip the specified number of recent history tables
-            WHILE @KeepCount > 0
+            -- Check how many tables we need to delete
+            PRINT 'Number of tables to delete: ' + CAST(@RowCount AS NVARCHAR(10))
+        
+            -- Only proceed if there are tables to delete
+            IF @RowCount > 0
             BEGIN
-                FETCH NEXT FROM HistoryTableCursor INTO @HistoryTable
-                IF @@FETCH_STATUS = 0
-                    SET @KeepCount = @KeepCount - 1
-                ELSE
-                    BREAK
-            END
+                -- Fetch and generate the drop statements for the tables to be deleted
+                SELECT @SQL = STRING_AGG('DROP TABLE ' + QUOTENAME(TableName), '; ') + ';'
+                FROM #HistoryTables
+                WHERE RowNum > @KeepCount
         
-            -- Fetch and generate the drop statements for the remaining tables
-            FETCH NEXT FROM HistoryTableCursor INTO @HistoryTable
-            WHILE @@FETCH_STATUS = 0
-            BEGIN
-                SET @DropTableSQL = 'DROP TABLE ' + QUOTENAME(@HistoryTable) + ';'
-                SET @SQL = @SQL + @DropTableSQL + CHAR(13) -- Add new line for readability
-                FETCH NEXT FROM HistoryTableCursor INTO @HistoryTable
-            END
+                -- Check the generated SQL
+                PRINT 'Generated SQL: ' + @SQL
         
-            -- Close and deallocate the cursor
-            CLOSE HistoryTableCursor
-            DEALLOCATE HistoryTableCursor
+                -- Execute the generated SQL to drop the old history tables
+                EXEC sp_executesql @SQL
+            END
         
             -- Drop the temp table
             DROP TABLE #HistoryTables
-        
-            -- Execute the generated SQL to drop the old history tables
-            EXEC sp_executesql @SQL
         END
-
-
-
-
-    EXEC DropHistoryTables @BaseTableName = 'OldTable', @KeepCount = 1
-
+        
+        
