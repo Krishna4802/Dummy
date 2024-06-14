@@ -66,3 +66,27 @@
         -- Drop the temp table
         DROP TABLE #HistoryTables;
     END;
+
+
+
+
+
+
+
+
+        SELECT 
+            TABLE_NAME,
+            ROW_NUMBER() OVER (
+                ORDER BY TRY_CONVERT(
+                    DATETIME,
+                    STUFF(STUFF(STUFF(STUFF(
+                        RIGHT(TABLE_NAME, 19), 
+                        15, 0, ':'), 
+                        13, 0, ':'), 
+                        11, 0, ' '), 
+                        9, 0, '-'), 
+                        7, 0, '-')
+                ) DESC
+            ) AS RowNum
+        FROM INFORMATION_SCHEMA.TABLES
+        WHERE TABLE_NAME LIKE @ActualTableName + '_history_%';
