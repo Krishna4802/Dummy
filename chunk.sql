@@ -1,29 +1,3 @@
-CREATE FUNCTION dbo.get_direct_references(@object_id INT)
-RETURNS @References TABLE
-(
-    referenced_entity NVARCHAR(256),
-    referenced_entity_id INT
-)
-AS
-BEGIN
-    INSERT INTO @References (referenced_entity, referenced_entity_id)
-    SELECT 
-        referenced_entity = QUOTENAME(SCHEMA_NAME(o.schema_id)) + '.' + QUOTENAME(o.name),
-        referenced_entity_id = o.object_id
-    FROM 
-        sys.sql_expression_dependencies d
-    INNER JOIN 
-        sys.objects o ON d.referenced_id = o.object_id
-    WHERE 
-        d.referencing_id = @object_id
-        AND o.type IN ('V', 'U', 'P', 'FN', 'TF') -- Include views, tables, procedures, functions
-        AND o.is_ms_shipped = 0;
-
-    RETURN;
-END;
-
-
-
 CREATE PROCEDURE dbo.get_all_references
 (
     @object_name NVARCHAR(256)
@@ -60,7 +34,7 @@ BEGIN
             er.level + 1,
             path = CAST(er.path + ' -> ' + 
                         CASE 
-                            WHEN dr.referenced_entity LIKE 'input.vw_%' THEN dbo.get_path(dr.referenced_entity)
+                            WHEN dr.referenced_entity LIKE 'input.vw_%' THEN er.path + ' -> ' + dr.referenced_entity
                             ELSE dr.referenced_entity 
                         END AS NVARCHAR(MAX))
         FROM 
@@ -83,24 +57,3 @@ BEGIN
         base_entity, level, referenced_entity
     OPTION (MAXRECURSION 0); -- Allow unlimited recursion
 END;
-
-
-
-EXEC dbo.get_all_references 'stg2.SP_employee_details';
-
-
-
-
-CREATE FUNCTION dbo.get_path(@entity NVARCHAR(256))
-RETURNS NVARCHAR(MAX)
-AS
-BEGIN
-    DECLARE @path NVARCHAR(MAX);
-
-    SELECT @path = COALESCE(@path + ' -> ' + referenced_entity, referenced_entity)
-    FROM sys.sql_expression_dependencies
-    WHERE referencing_id = OBJECT_ID(@entity);
-
-    RETURN @path;
-END;
-
