@@ -1,19 +1,16 @@
-            CREATE FUNCTION dbo.get_direct_references
+            CREATE PROCEDURE dbo.get_direct_references
             (
-                @object_id INT
-            )
-            RETURNS @References TABLE
-            (
-                referenced_entity NVARCHAR(256),
-                referenced_entity_id INT
+                @object_id INT,
+                @level INT
             )
             AS
             BEGIN
-                INSERT INTO @References (referenced_entity, referenced_entity_id)
                 SELECT 
+                    @level AS level,
                     referenced_entity = 
                         QUOTENAME(SCHEMA_NAME(o.schema_id)) + '.' + QUOTENAME(o.name),
                     referenced_entity_id = o.object_id
+                INTO #DirectReferences
                 FROM 
                     sys.sql_expression_dependencies d
                 INNER JOIN 
@@ -22,54 +19,88 @@
                     d.referencing_id = @object_id
                     AND o.type IN ('V', 'U', 'P', 'FN') -- Only include views, tables, stored procedures, and functions
                     AND o.is_ms_shipped = 0;
-            
-                RETURN;
+                
+                SELECT * FROM #DirectReferences;
+                
+                DROP TABLE #DirectReferences;
             END;
 
 
-                                    
-                        CREATE PROCEDURE dbo.get_all_references
+
+
+            CREATE PROCEDURE dbo.get_all_references
+            (
+                @object_name NVARCHAR(256)
+            )
+            AS
+            BEGIN
+                DECLARE @object_id INT;
+                DECLARE @level INT = 1;
+            
+                SELECT @object_id = OBJECT_ID(@object_name);
+            
+                IF OBJECT_ID('tempdb..#References') IS NOT NULL
+                    DROP TABLE #References;
+            
+                CREATE TABLE #References
+                (
+                    base_entity NVARCHAR(256),
+                    level INT,
+                    referenced_entity NVARCHAR(256),
+                    referenced_entity_id INT
+                );
+            
+                INSERT INTO #References (base_entity, level, referenced_entity, referenced_entity_id)
+                VALUES (@object_name, @level, @object_name, @object_id);
+            
+                WHILE EXISTS (SELECT 1 FROM #References WHERE level = @level)
+                BEGIN
+                    INSERT INTO #References (base_entity, level, referenced_entity, referenced_entity_id)
+                    SELECT 
+                        r.base_entity,
+                        @level + 1,
+                        dr.referenced_entity,
+                        dr.referenced_entity_id
+                    FROM 
+                        #References r
+                    CROSS APPLY 
                         (
-                            @object_name NVARCHAR(256)
-                        )
-                        AS
-                        BEGIN
-                            DECLARE @object_id INT;
-                            SELECT @object_id = OBJECT_ID(@object_name);
-                        
-                            WITH EntityReferences AS
-                            (
-                                -- Anchor member: Start with the given stored procedure
-                                SELECT 
-                                    @object_name AS base_entity,
-                                    @object_name AS referenced_entity,
-                                    @object_id AS referenced_entity_id,
-                                    CAST(@object_name AS NVARCHAR(MAX)) AS Path
-                                UNION ALL
-                                -- Recursive member: Get references for each referenced entity
-                                SELECT 
-                                    er.base_entity,
-                                    dr.referenced_entity,
-                                    dr.referenced_entity_id,
-                                    CAST(er.Path + ' -> ' + dr.referenced_entity AS NVARCHAR(MAX)) AS Path
-                                FROM 
-                                    EntityReferences er
-                                CROSS APPLY 
-                                    dbo.get_direct_references(er.referenced_entity_id) dr
-                                WHERE 
-                                    CHARINDEX(dr.referenced_entity, er.Path) = 0 -- Avoid circular references
-                            )
-                            SELECT DISTINCT 
-                                base_entity,
-                                referenced_entity
-                            FROM 
-                                EntityReferences
-                            WHERE 
-                                referenced_entity != base_entity
-                            ORDER BY 
-                                base_entity, referenced_entity
-                            OPTION (MAXRECURSION 0); -- Allow unlimited recursion
-                        END;
+                            EXEC dbo.get_direct_references r.referenced_entity_id, @level + 1
+                        ) dr
+                    WHERE 
+                        r.level = @level
+                        AND NOT EXISTS (
+                            SELECT 1 
+                            FROM #References x
+                            WHERE x.referenced_entity_id = dr.referenced_entity_id
+                            AND x.level <= @level + 1
+                        );
+            
+                    SET @level = @level + 1;
+                END;
+            
+                -- Pivot the results to get the desired output format
+                DECLARE @columns NVARCHAR(MAX), @sql NVARCHAR(MAX);
+                SELECT @columns = ISNULL(@columns + ', ', '') + QUOTENAME('referenced_entity level ' + CAST(level AS NVARCHAR))
+                FROM (SELECT DISTINCT level FROM #References WHERE level > 1) AS Levels
+                ORDER BY level;
+            
+                SET @sql = '
+                SELECT base_entity, ' + @columns + '
+                FROM (
+                    SELECT base_entity, referenced_entity, ''referenced_entity level '' + CAST(level AS NVARCHAR) AS lvl
+                    FROM #References
+                ) AS SourceTable
+                PIVOT (
+                    MAX(referenced_entity)
+                    FOR lvl IN (' + @columns + ')
+                ) AS PivotTable
+                ORDER BY base_entity';
+            
+                EXEC sp_executesql @sql;
+            
+                DROP TABLE #References;
+            END;
 
 
 
