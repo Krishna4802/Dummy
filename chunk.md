@@ -27,11 +27,6 @@
             END;
             
             
-            
-            
-            
-            
-            
             CREATE PROCEDURE dbo.get_all_references
             (
                 @object_name NVARCHAR(256)
@@ -69,9 +64,8 @@
                 ORDER BY 
                     base_entity, referenced_entity;
             END;
-            
-            
-            
-            
-            
+
+
+
             EXEC dbo.get_all_references 'stg2.SP_employee_details';
+
