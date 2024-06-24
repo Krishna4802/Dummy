@@ -27,8 +27,7 @@ END;
 
 
 
-
-CREATE OR ALTER PROCEDURE dbo.get_all_references
+CREATE PROCEDURE dbo.get_all_references
 (
     @object_name NVARCHAR(256)
 )
@@ -48,38 +47,48 @@ BEGIN
         -- Anchor member: start with the given stored procedure
         SELECT 
             base_entity = @object_name,
-            referenced_entity,
-            level = 1,
-            path = CAST(@object_name AS NVARCHAR(MAX)) + ' -> ' + referenced_entity
-        FROM 
-            dbo.get_direct_references(@object_id)
-        WHERE 
-            referenced_entity != @object_name -- Exclude self-reference
+            referenced_entity = @object_name,
+            referenced_entity_id = @object_id,
+            level = 0,
+            path = CAST(@object_name AS NVARCHAR(MAX)) AS path
         UNION ALL
         -- Recursive member: get references for each referenced entity
         SELECT 
             er.base_entity,
             dr.referenced_entity,
-            level = er.level + 1,
-            path = CAST(er.path + ' -> ' + dr.referenced_entity AS NVARCHAR(MAX))
+            dr.referenced_entity_id,
+            er.level + 1,
+            path = CAST(er.path + ' | ' + dr.referenced_entity AS NVARCHAR(MAX))
         FROM 
             EntityReferences er
         CROSS APPLY 
-            dbo.get_direct_references(OBJECT_ID(er.referenced_entity)) dr
+            dbo.get_direct_references(er.referenced_entity_id) dr
         WHERE 
             CHARINDEX(dr.referenced_entity, er.path) = 0 -- Avoid circular references
     )
     SELECT 
         base_entity,
-        referenced_entity,
-        L2.referenced_entity AS level_2,
-        L3.referenced_entity AS level_3
+        PARSENAME(referenced_entity, 1) AS level_1,
+        PARSENAME(referenced_entity, 2) AS level_2,
+        PARSENAME(referenced_entity, 3) AS level_3,
+        PARSENAME(referenced_entity, 4) AS level_4,
+        PARSENAME(referenced_entity, 5) AS level_5
     FROM 
-        EntityReferences er
-    LEFT JOIN EntityReferences L2 ON er.base_entity = L2.base_entity AND L2.level = 2
-    LEFT JOIN EntityReferences L3 ON er.base_entity = L3.base_entity AND L3.level = 3
-    WHERE 
-        er.level = 1 -- Only show level 1 references
+    (
+        SELECT 
+            base_entity,
+            referenced_entity,
+            ROW_NUMBER() OVER (PARTITION BY base_entity ORDER BY level DESC) AS rn
+        FROM 
+            EntityReferences
+        WHERE 
+            referenced_entity != base_entity
+    ) AS t
+    PIVOT 
+    (
+        MAX(referenced_entity) 
+        FOR rn IN ([1], [2], [3], [4], [5])
+    ) AS p
     ORDER BY 
-        base_entity, referenced_entity;
+        base_entity;
 END;
