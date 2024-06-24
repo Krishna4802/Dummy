@@ -24,7 +24,6 @@ END;
 
 
 
-
 CREATE PROCEDURE dbo.get_all_references
 (
     @object_name NVARCHAR(256)
