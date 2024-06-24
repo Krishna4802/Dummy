@@ -26,8 +26,7 @@ END;
 
 
 
-
-CREATE PROCEDURE dbo.get_all_references
+CREATE OR ALTER PROCEDURE dbo.get_all_references
 (
     @object_name NVARCHAR(256)
 )
@@ -55,10 +54,16 @@ BEGIN
         -- Recursive member: get references for each referenced entity
         SELECT 
             er.base_entity,
-            dr.referenced_entity,
+            CASE 
+                WHEN dr.referenced_entity LIKE 'input.mv_%' THEN REPLACE(dr.referenced_entity, 'input.mv_', 'input.vw_')
+                ELSE dr.referenced_entity
+            END AS referenced_entity,
             dr.referenced_entity_id,
             er.level + 1,
-            path = CAST(er.path + '->' + dr.referenced_entity AS NVARCHAR(MAX))
+            path = CAST(er.path + ' -> ' + CASE 
+                                            WHEN dr.referenced_entity LIKE 'input.vw_%' THEN dbo.get_path(dr.referenced_entity)
+                                            ELSE dr.referenced_entity 
+                                          END AS NVARCHAR(MAX))
         FROM 
             EntityReferences er
         CROSS APPLY 
@@ -66,10 +71,11 @@ BEGIN
         WHERE 
             CHARINDEX(dr.referenced_entity, er.path) = 0 -- Avoid circular references
     )
-    SELECT DISTINCT 
+    SELECT 
         base_entity,
         referenced_entity,
-        level
+        level,
+        path
     FROM 
         EntityReferences
     WHERE 
@@ -83,3 +89,20 @@ END;
 
 
 EXEC dbo.get_all_references 'stg2.SP_employee_details';
+
+
+
+
+CREATE FUNCTION dbo.get_path(@entity NVARCHAR(256))
+RETURNS NVARCHAR(MAX)
+AS
+BEGIN
+    DECLARE @path NVARCHAR(MAX);
+
+    SELECT @path = COALESCE(@path + ' -> ' + referenced_entity, referenced_entity)
+    FROM sys.sql_expression_dependencies
+    WHERE referencing_id = OBJECT_ID(@entity);
+
+    RETURN @path;
+END;
+
