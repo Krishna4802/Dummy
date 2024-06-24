@@ -10,7 +10,6 @@
                     referenced_entity = 
                         QUOTENAME(SCHEMA_NAME(o.schema_id)) + '.' + QUOTENAME(o.name),
                     referenced_entity_id = o.object_id
-                INTO #DirectReferences
                 FROM 
                     sys.sql_expression_dependencies d
                 INNER JOIN 
@@ -19,12 +18,7 @@
                     d.referencing_id = @object_id
                     AND o.type IN ('V', 'U', 'P', 'FN') -- Only include views, tables, stored procedures, and functions
                     AND o.is_ms_shipped = 0;
-                
-                SELECT * FROM #DirectReferences;
-                
-                DROP TABLE #DirectReferences;
             END;
-
 
 
 
@@ -55,6 +49,19 @@
             
                 WHILE EXISTS (SELECT 1 FROM #References WHERE level = @level)
                 BEGIN
+                    IF OBJECT_ID('tempdb..#DirectReferences') IS NOT NULL
+                        DROP TABLE #DirectReferences;
+            
+                    CREATE TABLE #DirectReferences
+                    (
+                        level INT,
+                        referenced_entity NVARCHAR(256),
+                        referenced_entity_id INT
+                    );
+            
+                    INSERT INTO #DirectReferences
+                    EXEC dbo.get_direct_references @object_id, @level + 1;
+            
                     INSERT INTO #References (base_entity, level, referenced_entity, referenced_entity_id)
                     SELECT 
                         r.base_entity,
@@ -63,10 +70,8 @@
                         dr.referenced_entity_id
                     FROM 
                         #References r
-                    CROSS APPLY 
-                        (
-                            EXEC dbo.get_direct_references r.referenced_entity_id, @level + 1
-                        ) dr
+                    CROSS JOIN 
+                        #DirectReferences dr
                     WHERE 
                         r.level = @level
                         AND NOT EXISTS (
@@ -99,10 +104,7 @@
             
                 EXEC sp_executesql @sql;
             
-                DROP TABLE #References;
-            END;
-
+                DROP TABLE #
 
 
             EXEC dbo.get_all_references 'stg2.SP_employee_details';
-
