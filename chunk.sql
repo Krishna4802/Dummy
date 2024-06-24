@@ -27,7 +27,8 @@ END;
 
 
 
-CREATE or alter PROCEDURE dbo.get_all_references
+
+CREATE PROCEDURE dbo.get_all_references
 (
     @object_name NVARCHAR(256)
 )
@@ -47,18 +48,18 @@ BEGIN
         -- Anchor member: start with the given stored procedure
         SELECT 
             base_entity = @object_name,
-            referenced_entity = @object_name,
-            referenced_entity_id = @object_id,
-            level = 0,
-            path = CAST(@object_name AS NVARCHAR(MAX))
+            referenced_entity = referenced_entity,
+            path = CAST(@object_name AS NVARCHAR(MAX)) + ' -> ' + referenced_entity
+        FROM 
+            dbo.get_direct_references(@object_id)
+        WHERE
+            referenced_entity != @object_name -- Exclude self-reference
         UNION ALL
         -- Recursive member: get references for each referenced entity
         SELECT 
             er.base_entity,
             dr.referenced_entity,
-            dr.referenced_entity_id,
-            er.level + 1,
-            path = CAST(er.path + '->' + dr.referenced_entity AS NVARCHAR(MAX))
+            path = CAST(er.path + ' -> ' + dr.referenced_entity AS NVARCHAR(MAX))
         FROM 
             EntityReferences er
         CROSS APPLY 
@@ -66,17 +67,13 @@ BEGIN
         WHERE 
             CHARINDEX(dr.referenced_entity, er.path) = 0 -- Avoid circular references
     )
-    SELECT DISTINCT 
+    SELECT 
         base_entity,
-        referenced_entity,
-        level
+        referenced_entity
     FROM 
         EntityReferences
-    WHERE 
-        referenced_entity != base_entity
     ORDER BY 
-        base_entity, level, referenced_entity
-    OPTION (MAXRECURSION 0); -- Allow unlimited recursion
+        base_entity, referenced_entity;
 END;
 
 
