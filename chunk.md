@@ -25,45 +25,51 @@
             
                 RETURN;
             END;
-            
-            
-            CREATE PROCEDURE dbo.get_all_references
-            (
-                @object_name NVARCHAR(256)
-            )
-            AS
-            BEGIN
-                DECLARE @object_id INT;
-                SELECT @object_id = OBJECT_ID(@object_name);
-            
-                WITH EntityReferences AS
-                (
-                    -- Anchor member: Start with the given stored procedure
-                    SELECT 
-                        @object_name AS base_entity,
-                        @object_name AS referenced_entity,
-                        @object_id AS referenced_entity_id
-                    UNION ALL
-                    -- Recursive member: Get references for each referenced entity
-                    SELECT 
-                        er.base_entity,
-                        dr.referenced_entity,
-                        dr.referenced_entity_id
-                    FROM 
-                        EntityReferences er
-                    CROSS APPLY 
-                        dbo.get_direct_references(er.referenced_entity_id) dr
-                )
-                SELECT DISTINCT 
-                    base_entity,
-                    referenced_entity
-                FROM 
-                    EntityReferences
-                WHERE 
-                    referenced_entity != base_entity
-                ORDER BY 
-                    base_entity, referenced_entity;
-            END;
+
+
+                                    
+                        CREATE PROCEDURE dbo.get_all_references
+                        (
+                            @object_name NVARCHAR(256)
+                        )
+                        AS
+                        BEGIN
+                            DECLARE @object_id INT;
+                            SELECT @object_id = OBJECT_ID(@object_name);
+                        
+                            WITH EntityReferences AS
+                            (
+                                -- Anchor member: Start with the given stored procedure
+                                SELECT 
+                                    @object_name AS base_entity,
+                                    @object_name AS referenced_entity,
+                                    @object_id AS referenced_entity_id,
+                                    CAST(@object_name AS NVARCHAR(MAX)) AS Path
+                                UNION ALL
+                                -- Recursive member: Get references for each referenced entity
+                                SELECT 
+                                    er.base_entity,
+                                    dr.referenced_entity,
+                                    dr.referenced_entity_id,
+                                    CAST(er.Path + ' -> ' + dr.referenced_entity AS NVARCHAR(MAX)) AS Path
+                                FROM 
+                                    EntityReferences er
+                                CROSS APPLY 
+                                    dbo.get_direct_references(er.referenced_entity_id) dr
+                                WHERE 
+                                    CHARINDEX(dr.referenced_entity, er.Path) = 0 -- Avoid circular references
+                            )
+                            SELECT DISTINCT 
+                                base_entity,
+                                referenced_entity
+                            FROM 
+                                EntityReferences
+                            WHERE 
+                                referenced_entity != base_entity
+                            ORDER BY 
+                                base_entity, referenced_entity
+                            OPTION (MAXRECURSION 0); -- Allow unlimited recursion
+                        END;
 
 
 
