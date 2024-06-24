@@ -29,7 +29,6 @@ END;
 
 
 
-
 CREATE PROCEDURE dbo.get_all_references
 (
     @object_name NVARCHAR(256)
@@ -61,7 +60,7 @@ BEGIN
         FROM 
             EntityReferences er
         CROSS APPLY 
-            dbo.get_direct_references(er.referenced_entity_id) dr
+            dbo.get_direct_references(OBJECT_ID(er.referenced_entity)) dr
         WHERE 
             CHARINDEX(dr.referenced_entity, er.referenced_entity) = 0 -- Avoid circular references
     )
