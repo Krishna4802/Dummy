@@ -1,51 +1,72 @@
-      CREATE PROCEDURE dbo.getchunkloadquery
-      (
-          @loadquery NVARCHAR(MAX),
-          @primary_key NVARCHAR(MAX),
-          @chunksize INT = 5000
-      )
-      AS
-      BEGIN
-          DECLARE @total_count INT;
-          DECLARE @offset INT = 0;
-          DECLARE @query NVARCHAR(MAX);
-          DECLARE @sql NVARCHAR(MAX);
-          DECLARE @params NVARCHAR(MAX);
-      
-          -- Temporary table to hold the generated queries
-          CREATE TABLE #Queries
-          (
-              Query NVARCHAR(MAX)
-          );
-      
-          -- Construct the dynamic SQL to get the total count
-          SET @sql = N'SELECT @total_count = COUNT(*) FROM (' + @loadquery + ') AS LoadQuery';
-          SET @params = N'@total_count INT OUTPUT';
-      
-          -- Execute the dynamic SQL to get the total count
-          EXEC sp_executesql @sql, @params, @total_count = @total_count OUTPUT;
-      
-          -- Generate queries for each chunk
-          WHILE @offset < @total_count
-          BEGIN
-              SET @query = N'SELECT * FROM (' + @loadquery + ') AS LoadQuery ORDER BY ' + @primary_key + ' OFFSET ' + CAST(@offset AS NVARCHAR(MAX)) + ' ROWS FETCH NEXT ' + CAST(@chunksize AS NVARCHAR(MAX)) + ' ROWS ONLY';
-      
-              -- Insert the generated query into the temporary table
-              INSERT INTO #Queries (Query) VALUES (@query);
-      
-              -- Move to the next chunk
-              SET @offset = @offset + @chunksize;
-          END;
-      
-          -- Return the result set
-          SELECT Query FROM #Queries;
-      
-          -- Clean up temporary table
-          DROP TABLE #Queries;
-      END;
+            CREATE FUNCTION dbo.get_direct_references
+            (
+                @object_name NVARCHAR(256)
+            )
+            RETURNS @References TABLE
+            (
+                referenced_entity NVARCHAR(256)
+            )
+            AS
+            BEGIN
+                DECLARE @object_id INT;
+            
+                SELECT @object_id = OBJECT_ID(@object_name);
+            
+                INSERT INTO @References (referenced_entity)
+                SELECT 
+                    referenced_entity = referenced_entity_name 
+                FROM 
+                    (SELECT DISTINCT 
+                        referenced_entity_name = 
+                            OBJECT_SCHEMA_NAME(referencing_id) + '.' + OBJECT_NAME(referencing_id)
+                     FROM sys.sql_expression_dependencies 
+                     WHERE referencing_id = @object_id
+                     AND referenced_entity_name IS NOT NULL
+                    ) AS DirectReferences;
+            
+                RETURN;
+            END;
 
 
 
 
 
-EXEC dbo.getchunkloadquery 'SELECT id, name, parentid, dob FROM employee', 'parentid', 100;
+
+CREATE PROCEDURE dbo.get_all_references
+(
+    @object_name NVARCHAR(256)
+)
+AS
+BEGIN
+    WITH EntityReferences AS
+    (
+        -- Anchor member: Start with the given stored procedure
+        SELECT 
+            @object_name AS referenced_entity,
+            @object_name AS base_entity
+        UNION ALL
+        -- Recursive member: Get references for each referenced entity
+        SELECT 
+            dr.referenced_entity,
+            er.base_entity
+        FROM 
+            dbo.get_direct_references(er.referenced_entity) dr
+        INNER JOIN 
+            EntityReferences er ON dr.referenced_entity = er.referenced_entity
+    )
+    SELECT DISTINCT 
+        base_entity,
+        referenced_entity
+    FROM 
+        EntityReferences
+    WHERE 
+        referenced_entity != base_entity
+    ORDER BY 
+        base_entity, referenced_entity;
+END;
+
+
+
+
+EXEC dbo.get_all_references 'stg2.SP_employee_details';
+
