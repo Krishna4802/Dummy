@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE dbo.get_all_references
+CREATE PROCEDURE dbo.get_all_references
 (
     @object_name NVARCHAR(256)
 )
