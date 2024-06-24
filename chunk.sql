@@ -1,4 +1,4 @@
-CREATE PROCEDURE dbo.get_all_references
+CREATE OR ALTER PROCEDURE dbo.get_all_references
 (
     @object_name NVARCHAR(256)
 )
@@ -21,7 +21,7 @@ BEGIN
             referenced_entity = @object_name,
             referenced_entity_id = @object_id,
             level = 0,
-            path = CAST(@object_name AS NVARCHAR(MAX))
+            path = CAST(@object_name AS NVARCHAR(MAX))  -- Ensure explicit casting
         UNION ALL
         -- Recursive member: get references for each referenced entity
         SELECT 
@@ -36,7 +36,7 @@ BEGIN
                         CASE 
                             WHEN dr.referenced_entity LIKE 'input.vw_%' THEN er.path + ' -> ' + dr.referenced_entity
                             ELSE dr.referenced_entity 
-                        END AS NVARCHAR(MAX))
+                        END AS NVARCHAR(MAX))  -- Ensure explicit casting
         FROM 
             EntityReferences er
         CROSS APPLY 
