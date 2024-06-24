@@ -1,8 +1,12 @@
 CREATE FUNCTION dbo.get_direct_references(@object_id INT)
-RETURNS TABLE
-AS
-RETURN
+RETURNS @References TABLE
 (
+    referenced_entity NVARCHAR(256),
+    referenced_entity_id INT
+)
+AS
+BEGIN
+    INSERT INTO @References (referenced_entity, referenced_entity_id)
     SELECT 
         referenced_entity = QUOTENAME(SCHEMA_NAME(o.schema_id)) + '.' + QUOTENAME(o.name),
         referenced_entity_id = o.object_id
@@ -13,9 +17,10 @@ RETURN
     WHERE 
         d.referencing_id = @object_id
         AND o.type IN ('V', 'U', 'P', 'FN', 'TF') -- Include views, tables, procedures, functions
-        AND o.is_ms_shipped = 0
-);
+        AND o.is_ms_shipped = 0;
 
+    RETURN;
+END;
 
 CREATE PROCEDURE dbo.get_all_references
 (
