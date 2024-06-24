@@ -25,8 +25,7 @@ END;
 
 
 
-
-CREATE OR ALTER PROCEDURE dbo.get_all_references
+CREATE PROCEDURE dbo.get_all_references
 (
     @object_name NVARCHAR(256)
 )
@@ -60,10 +59,11 @@ BEGIN
             END AS referenced_entity,
             dr.referenced_entity_id,
             er.level + 1,
-            path = CAST(er.path + ' -> ' + CASE 
-                                            WHEN dr.referenced_entity LIKE 'input.vw_%' THEN dbo.get_path(dr.referenced_entity)
-                                            ELSE dr.referenced_entity 
-                                          END AS NVARCHAR(MAX))
+            path = CAST(er.path + ' -> ' + 
+                        CASE 
+                            WHEN dr.referenced_entity LIKE 'input.vw_%' THEN dbo.get_path(dr.referenced_entity)
+                            ELSE dr.referenced_entity 
+                        END AS NVARCHAR(MAX))
         FROM 
             EntityReferences er
         CROSS APPLY 
@@ -84,7 +84,6 @@ BEGIN
         base_entity, level, referenced_entity
     OPTION (MAXRECURSION 0); -- Allow unlimited recursion
 END;
-
 
 
 
