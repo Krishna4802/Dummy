@@ -27,6 +27,9 @@ END;
 
 
 
+
+
+
 CREATE PROCEDURE dbo.get_all_references
 (
     @object_name NVARCHAR(256)
@@ -47,48 +50,34 @@ BEGIN
         -- Anchor member: start with the given stored procedure
         SELECT 
             base_entity = @object_name,
-            referenced_entity = @object_name,
-            referenced_entity_id = @object_id,
-            level = 0,
-            path = CAST(@object_name AS NVARCHAR(MAX)) AS path
+            referenced_entity = CAST(@object_name AS NVARCHAR(MAX)),
+            level = 1
         UNION ALL
         -- Recursive member: get references for each referenced entity
         SELECT 
             er.base_entity,
-            dr.referenced_entity,
-            dr.referenced_entity_id,
-            er.level + 1,
-            path = CAST(er.path + ' | ' + dr.referenced_entity AS NVARCHAR(MAX))
+            CAST(er.referenced_entity + ' | ' + dr.referenced_entity AS NVARCHAR(MAX)),
+            er.level + 1
         FROM 
             EntityReferences er
         CROSS APPLY 
             dbo.get_direct_references(er.referenced_entity_id) dr
         WHERE 
-            CHARINDEX(dr.referenced_entity, er.path) = 0 -- Avoid circular references
+            CHARINDEX(dr.referenced_entity, er.referenced_entity) = 0 -- Avoid circular references
     )
     SELECT 
         base_entity,
-        PARSENAME(referenced_entity, 1) AS level_1,
-        PARSENAME(referenced_entity, 2) AS level_2,
-        PARSENAME(referenced_entity, 3) AS level_3,
-        PARSENAME(referenced_entity, 4) AS level_4,
-        PARSENAME(referenced_entity, 5) AS level_5
+        MAX(CASE WHEN level = 1 THEN referenced_entity ELSE NULL END) AS level_1,
+        MAX(CASE WHEN level = 2 THEN referenced_entity ELSE NULL END) AS level_2,
+        MAX(CASE WHEN level = 3 THEN referenced_entity ELSE NULL END) AS level_3,
+        MAX(CASE WHEN level = 4 THEN referenced_entity ELSE NULL END) AS level_4,
+        MAX(CASE WHEN level = 5 THEN referenced_entity ELSE NULL END) AS level_5
     FROM 
-    (
-        SELECT 
-            base_entity,
-            referenced_entity,
-            ROW_NUMBER() OVER (PARTITION BY base_entity ORDER BY level DESC) AS rn
-        FROM 
-            EntityReferences
-        WHERE 
-            referenced_entity != base_entity
-    ) AS t
-    PIVOT 
-    (
-        MAX(referenced_entity) 
-        FOR rn IN ([1], [2], [3], [4], [5])
-    ) AS p
+        EntityReferences
+    WHERE 
+        referenced_entity != base_entity
+    GROUP BY 
+        base_entity
     ORDER BY 
         base_entity;
 END;
