@@ -28,8 +28,7 @@ END;
 
 
 
-
-CREATE PROCEDURE dbo.get_all_references
+CREATE or alter PROCEDURE dbo.get_all_references
 (
     @object_name NVARCHAR(256)
 )
@@ -49,30 +48,30 @@ BEGIN
         -- Anchor member: start with the given stored procedure
         SELECT 
             base_entity = @object_name,
-            referenced_entity = CAST(@object_name AS NVARCHAR(MAX)),
+            referenced_entity = CAST(@object_name AS NVARCHAR(MAX)) AS path,
             level = 1
         UNION ALL
         -- Recursive member: get references for each referenced entity
         SELECT 
             er.base_entity,
-            CAST(er.referenced_entity + ' | ' + dr.referenced_entity AS NVARCHAR(MAX)),
+            CAST(er.path + ' -> ' + dr.referenced_entity AS NVARCHAR(MAX)),
             er.level + 1
         FROM 
             EntityReferences er
         CROSS APPLY 
             dbo.get_direct_references(OBJECT_ID(er.referenced_entity)) dr
         WHERE 
-            CHARINDEX(dr.referenced_entity, er.referenced_entity) = 0 -- Avoid circular references
+            CHARINDEX(dr.referenced_entity, er.path) = 0 -- Avoid circular references
     )
     SELECT 
-        base_entity,
-        MAX(CASE WHEN level = 1 THEN referenced_entity ELSE NULL END) AS level_1,
-        MAX(CASE WHEN level = 2 THEN referenced_entity ELSE NULL END) AS level_2,
-        MAX(CASE WHEN level = 3 THEN referenced_entity ELSE NULL END) AS level_3,
-        MAX(CASE WHEN level = 4 THEN referenced_entity ELSE NULL END) AS level_4,
-        MAX(CASE WHEN level = 5 THEN referenced_entity ELSE NULL END) AS level_5
+        base_entity AS base_entity,
+        STUFF((SELECT CHAR(10) + REPLICATE(' ', (level - 1) * 2) + referenced_entity
+               FROM EntityReferences sub
+               WHERE sub.base_entity = main.base_entity
+               ORDER BY sub.level
+               FOR XML PATH('')), 1, 1, '') AS referenced_entities
     FROM 
-        EntityReferences
+        EntityReferences main
     WHERE 
         referenced_entity != base_entity
     GROUP BY 
