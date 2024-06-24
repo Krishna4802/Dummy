@@ -26,7 +26,9 @@ END;
 
 
 
-CREATE PROCEDURE dbo.get_all_references
+
+
+CREATE OR ALTER PROCEDURE dbo.get_all_references
 (
     @object_name NVARCHAR(256)
 )
@@ -70,28 +72,12 @@ BEGIN
     SELECT 
         base_entity,
         referenced_entity,
-        CASE WHEN level >= 2 THEN L2.referenced_entity ELSE '' END AS level_2,
-        CASE WHEN level >= 3 THEN L3.referenced_entity ELSE '' END AS level_3
+        L2.referenced_entity AS level_2,
+        L3.referenced_entity AS level_3
     FROM 
         EntityReferences er
-    LEFT JOIN (
-        SELECT 
-            base_entity,
-            referenced_entity
-        FROM 
-            EntityReferences
-        WHERE 
-            level = 2
-    ) L2 ON er.base_entity = L2.base_entity
-    LEFT JOIN (
-        SELECT 
-            base_entity,
-            referenced_entity
-        FROM 
-            EntityReferences
-        WHERE 
-            level = 3
-    ) L3 ON er.base_entity = L3.base_entity
+    LEFT JOIN EntityReferences L2 ON er.base_entity = L2.base_entity AND L2.level = 2
+    LEFT JOIN EntityReferences L3 ON er.base_entity = L3.base_entity AND L3.level = 3
     WHERE 
         er.level = 1 -- Only show level 1 references
     ORDER BY 
