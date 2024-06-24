@@ -28,8 +28,6 @@ END;
 
 
 
-
-
 CREATE PROCEDURE dbo.get_all_references
 (
     @object_name NVARCHAR(256)
@@ -51,6 +49,7 @@ BEGIN
         SELECT 
             base_entity = @object_name,
             referenced_entity = referenced_entity,
+            level = 1,
             path = CAST(@object_name AS NVARCHAR(MAX)) + ' -> ' + referenced_entity
         FROM 
             dbo.get_direct_references(@object_id)
@@ -61,6 +60,7 @@ BEGIN
         SELECT 
             er.base_entity,
             dr.referenced_entity,
+            level = er.level + 1,
             path = CAST(er.path + ' -> ' + dr.referenced_entity AS NVARCHAR(MAX))
         FROM 
             EntityReferences er
@@ -71,9 +71,23 @@ BEGIN
     )
     SELECT 
         base_entity,
-        referenced_entity
+        referenced_entity,
+        ISNULL((
+            SELECT referenced_entity 
+            FROM EntityReferences er2 
+            WHERE er2.base_entity = er.base_entity 
+              AND er2.level = er.level + 1 
+              AND CHARINDEX(er.referenced_entity, er2.path) = 1), '') AS level_2,
+        ISNULL((
+            SELECT referenced_entity 
+            FROM EntityReferences er3 
+            WHERE er3.base_entity = er.base_entity 
+              AND er3.level = er.level + 2 
+              AND CHARINDEX(er.referenced_entity, er3.path) = 1), '') AS level_3
     FROM 
-        EntityReferences
+        EntityReferences er
+    WHERE 
+        er.level = 1 -- Only show level 1 references
     ORDER BY 
         base_entity, referenced_entity;
 END;
