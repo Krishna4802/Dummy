@@ -26,8 +26,6 @@ END;
 
 
 
-
-
 CREATE PROCEDURE dbo.get_all_references
 (
     @object_name NVARCHAR(256)
@@ -48,12 +46,12 @@ BEGIN
         -- Anchor member: start with the given stored procedure
         SELECT 
             base_entity = @object_name,
-            referenced_entity = referenced_entity,
+            referenced_entity,
             level = 1,
             path = CAST(@object_name AS NVARCHAR(MAX)) + ' -> ' + referenced_entity
         FROM 
             dbo.get_direct_references(@object_id)
-        WHERE
+        WHERE 
             referenced_entity != @object_name -- Exclude self-reference
         UNION ALL
         -- Recursive member: get references for each referenced entity
@@ -72,20 +70,28 @@ BEGIN
     SELECT 
         base_entity,
         referenced_entity,
-        ISNULL((
-            SELECT referenced_entity 
-            FROM EntityReferences er2 
-            WHERE er2.base_entity = er.base_entity 
-              AND er2.level = er.level + 1 
-              AND CHARINDEX(er.referenced_entity, er2.path) = 1), '') AS level_2,
-        ISNULL((
-            SELECT referenced_entity 
-            FROM EntityReferences er3 
-            WHERE er3.base_entity = er.base_entity 
-              AND er3.level = er.level + 2 
-              AND CHARINDEX(er.referenced_entity, er3.path) = 1), '') AS level_3
+        CASE WHEN level >= 2 THEN L2.referenced_entity ELSE '' END AS level_2,
+        CASE WHEN level >= 3 THEN L3.referenced_entity ELSE '' END AS level_3
     FROM 
         EntityReferences er
+    LEFT JOIN (
+        SELECT 
+            base_entity,
+            referenced_entity
+        FROM 
+            EntityReferences
+        WHERE 
+            level = 2
+    ) L2 ON er.base_entity = L2.base_entity
+    LEFT JOIN (
+        SELECT 
+            base_entity,
+            referenced_entity
+        FROM 
+            EntityReferences
+        WHERE 
+            level = 3
+    ) L3 ON er.base_entity = L3.base_entity
     WHERE 
         er.level = 1 -- Only show level 1 references
     ORDER BY 
