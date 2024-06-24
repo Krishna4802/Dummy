@@ -1,4 +1,4 @@
-CREATE or alter PROCEDURE dbo.get_all_references
+CREATE PROCEDURE dbo.get_all_references
 (
     @object_name NVARCHAR(256)
 )
@@ -51,15 +51,15 @@ BEGIN
     )
     SELECT 
         base_entity,
-        MAX(referenced_entity_next) AS referenced_entity_next, -- Use aggregate function MAX
+        MAX(referenced_entity_next) AS referenced_entity_next,
         level,
-        MAX(path) AS path -- Use aggregate function MAX
+        MAX(path) AS path
     FROM 
         EntityReferences
     WHERE 
         referenced_entity != base_entity
     GROUP BY 
-        base_entity, level -- Group by base_entity and level
+        base_entity, level, path -- Include all non-aggregated columns from EntityReferences CTE in GROUP BY
     ORDER BY 
         base_entity, level, referenced_entity_next
     OPTION (MAXRECURSION 0); -- Allow unlimited recursion
