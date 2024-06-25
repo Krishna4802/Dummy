@@ -1,3 +1,26 @@
+CREATE FUNCTION dbo.TransformAndRetrieveID (@entity_name NVARCHAR(256))
+RETURNS INT
+AS
+BEGIN
+    DECLARE @transformed_name NVARCHAR(256);
+    DECLARE @entity_id INT;
+
+    IF @entity_name LIKE 'mv\_%'
+    BEGIN
+        SET @transformed_name = REPLACE(@entity_name, 'mv_', 'vw_');
+    END
+    ELSE
+    BEGIN
+        SET @transformed_name = @entity_name;
+    END
+
+    SET @entity_id = OBJECT_ID(@transformed_name);
+
+    RETURN @entity_id;
+END;
+
+
+
 CREATE PROCEDURE dbo.get_all_references
 (
     @object_name NVARCHAR(256)
@@ -28,18 +51,18 @@ BEGIN
             er.base_entity,
             referenced_entity = 
                 CASE 
-                    WHEN dr.referenced_entity LIKE 'input.mv_%' THEN REPLACE(dr.referenced_entity, 'input.mv_', 'input.vw_')
-                    ELSE dr.referenced_entity
+                    WHEN dr.referenced_entity LIKE 'mv\_%' THEN dbo.TransformAndRetrieveID(REPLACE(dr.referenced_entity, 'mv_', 'vw_'))
+                    ELSE dr.referenced_entity_id
                 END,
             referenced_entity_id = 
                 CASE 
-                    WHEN dr.referenced_entity LIKE 'input.mv_%' THEN OBJECT_ID(REPLACE(dr.referenced_entity, 'input.mv_', 'input.vw_'))
+                    WHEN dr.referenced_entity LIKE 'mv\_%' THEN dbo.TransformAndRetrieveID(REPLACE(dr.referenced_entity, 'mv_', 'vw_'))
                     ELSE dr.referenced_entity_id
                 END,
             er.level + 1,
             path = er.path + ' -> ' + 
                 CASE 
-                    WHEN dr.referenced_entity LIKE 'input.mv_%' THEN REPLACE(dr.referenced_entity, 'input.mv_', 'input.vw_')
+                    WHEN dr.referenced_entity LIKE 'mv\_%' THEN REPLACE(dr.referenced_entity, 'mv_', 'vw_')
                     ELSE dr.referenced_entity 
                 END
         FROM 
@@ -47,14 +70,14 @@ BEGIN
         CROSS APPLY 
             dbo.get_direct_references(
                 CASE 
-                    WHEN er.referenced_entity LIKE 'input.mv_%' THEN OBJECT_ID(REPLACE(dr.referenced_entity, 'input.mv_', 'input.vw_'))
+                    WHEN dr.referenced_entity LIKE 'mv\_%' THEN dbo.TransformAndRetrieveID(REPLACE(dr.referenced_entity, 'mv_', 'vw_'))
                     ELSE dr.referenced_entity_id
                 END
             ) dr
         WHERE 
             CHARINDEX(
                 CASE 
-                    WHEN dr.referenced_entity LIKE 'input.mv_%' THEN REPLACE(dr.referenced_entity, 'input.mv_', 'input.vw_')
+                    WHEN dr.referenced_entity LIKE 'mv\_%' THEN REPLACE(dr.referenced_entity, 'mv_', 'vw_')
                     ELSE dr.referenced_entity
                 END, 
                 er.path
