@@ -29,19 +29,19 @@ BEGIN
             CASE 
                 WHEN dr.referenced_entity LIKE 'input.mv_%' THEN REPLACE(dr.referenced_entity, 'input.mv_', 'input.vw_')
                 ELSE dr.referenced_entity
-            END AS referenced_entity_next,
+            END AS referenced_entity,
             dr.referenced_entity_id,
             er.level + 1,
-            path = CAST(er.path + ' -> ' 
-                        + CASE 
-                            WHEN dr.referenced_entity LIKE 'input.vw_%' THEN (
-                                SELECT COALESCE(MAX(path), dr.referenced_entity)
-                                FROM sys.sql_expression_dependencies
-                                WHERE referencing_id = dr.referenced_entity_id
-                            )
-                            ELSE dr.referenced_entity 
-                          END 
-                        AS NVARCHAR(MAX))
+            CAST(er.path + ' -> ' + 
+                CASE 
+                    WHEN dr.referenced_entity LIKE 'input.vw_%' THEN (
+                        SELECT COALESCE(MAX(dr2.referenced_entity), dr.referenced_entity)
+                        FROM sys.sql_expression_dependencies dr2
+                        WHERE dr2.referencing_id = dr.referenced_entity_id
+                    )
+                    ELSE dr.referenced_entity 
+                END 
+            AS NVARCHAR(MAX)) AS path
         FROM 
             EntityReferences er
         CROSS APPLY 
@@ -51,16 +51,14 @@ BEGIN
     )
     SELECT 
         base_entity,
-        MAX(referenced_entity_next) AS referenced_entity_next,
+        referenced_entity,
         level,
-        MAX(path) AS path
+        path
     FROM 
         EntityReferences
     WHERE 
         referenced_entity != base_entity
-    GROUP BY 
-        base_entity, level, path -- Include all non-aggregated columns from EntityReferences CTE in GROUP BY
     ORDER BY 
-        base_entity, level, referenced_entity_next
+        base_entity, level, referenced_entity
     OPTION (MAXRECURSION 0); -- Allow unlimited recursion
 END;
