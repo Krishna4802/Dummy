@@ -15,37 +15,32 @@ BEGIN
 
     ;WITH EntityReferences AS
     (
-        -- Anchor member: start with the given object
+        -- Anchor member: start with the given stored procedure
         SELECT 
             base_entity = @object_name,
             referenced_entity = @object_name,
             referenced_entity_id = @object_id,
             level = 0,
             path = CAST(@object_name AS NVARCHAR(MAX))
-        FROM 
-            sys.objects
-        WHERE 
-            OBJECT_ID = @object_id
         UNION ALL
         -- Recursive member: get references for each referenced entity
         SELECT 
             er.base_entity,
             CASE 
-                WHEN CHARINDEX('input.mv_', dr.referenced_entity) = 1 THEN 'input.vw_' + SUBSTRING(dr.referenced_entity, LEN('input.mv_') + 1, LEN(dr.referenced_entity))
+                WHEN dr.referenced_entity LIKE 'input.mv_%' THEN 'input.vw_' + SUBSTRING(dr.referenced_entity, LEN('input.mv_') + 1, LEN(dr.referenced_entity))
                 ELSE dr.referenced_entity
             END,
             dr.referenced_entity_id,
             er.level + 1,
             path = CAST(er.path + '->' + 
                         CASE 
-                            WHEN CHARINDEX('input.mv_', dr.referenced_entity) = 1 THEN 'input.vw_' + SUBSTRING(dr.referenced_entity, LEN('input.mv_') + 1, LEN(dr.referenced_entity))
+                            WHEN dr.referenced_entity LIKE 'input.mv_%' THEN 'input.vw_' + SUBSTRING(dr.referenced_entity, LEN('input.mv_') + 1, LEN(dr.referenced_entity))
                             ELSE dr.referenced_entity
-                        END
-                     AS NVARCHAR(MAX))
+                        END AS NVARCHAR(MAX))
         FROM 
             EntityReferences er
         CROSS APPLY 
-            dbo.get_direct_references(er.referenced_entity_id) AS dr
+            dbo.get_direct_references(er.referenced_entity_id) dr
         WHERE 
             CHARINDEX(dr.referenced_entity, er.path) = 0 -- Avoid circular references
     )
