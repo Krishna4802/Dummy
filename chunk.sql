@@ -43,12 +43,7 @@ BEGIN
         FROM 
             EntityReferences er
         CROSS APPLY 
-            dbo.get_direct_references(
-                CASE 
-                    WHEN dr.referenced_entity LIKE 'input.mv_%' THEN OBJECT_ID(REPLACE(dr.referenced_entity, 'input.mv_', 'input.vw_'))
-                    ELSE dr.referenced_entity_id
-                END
-            ) dr
+            dbo.get_direct_references(er.referenced_entity_id) dr
         WHERE 
             CHARINDEX(
                 CASE 
