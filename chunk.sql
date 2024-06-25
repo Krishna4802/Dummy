@@ -26,20 +26,23 @@ BEGIN
         -- Recursive member: get references for each referenced entity
         SELECT 
             er.base_entity,
-            CASE 
-                WHEN dr.referenced_entity LIKE 'input.mv_%' THEN REPLACE(dr.referenced_entity, 'input.mv_', 'input.vw_')
-                ELSE dr.referenced_entity
-            END AS referenced_entity,
-            CASE 
-                WHEN dr.referenced_entity LIKE 'input.mv_%' THEN OBJECT_ID(REPLACE(dr.referenced_entity, 'input.mv_', 'input.vw_'))
-                ELSE dr.referenced_entity_id
-            END AS referenced_entity_id,
-            er.level + 1,
-            CAST(er.path + ' -> ' +
+            referenced_entity = CAST(
                 CASE 
                     WHEN dr.referenced_entity LIKE 'input.mv_%' THEN REPLACE(dr.referenced_entity, 'input.mv_', 'input.vw_')
                     ELSE dr.referenced_entity
-                END AS NVARCHAR(MAX)) AS path
+                END AS NVARCHAR(256)
+            ),
+            referenced_entity_id = 
+                CASE 
+                    WHEN dr.referenced_entity LIKE 'input.mv_%' THEN OBJECT_ID(REPLACE(dr.referenced_entity, 'input.mv_', 'input.vw_'))
+                    ELSE dr.referenced_entity_id
+                END,
+            er.level + 1,
+            path = CAST(er.path + ' -> ' + 
+                CASE 
+                    WHEN dr.referenced_entity LIKE 'input.mv_%' THEN REPLACE(dr.referenced_entity, 'input.mv_', 'input.vw_')
+                    ELSE dr.referenced_entity 
+                END AS NVARCHAR(MAX))
         FROM 
             EntityReferences er
         CROSS APPLY 
