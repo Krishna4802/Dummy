@@ -45,7 +45,7 @@ BEGIN
         FROM 
             EntityReferences er
         CROSS APPLY 
-            dbo.get_direct_references(dr.referenced_entity_id) AS dr -- Corrected aliasing of CROSS APPLY result set
+            dbo.get_direct_references(er.referenced_entity_id) AS dr
         WHERE 
             CHARINDEX(dr.referenced_entity, er.path) = 0 -- Avoid circular references
     )
