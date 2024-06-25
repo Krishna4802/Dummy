@@ -26,10 +26,12 @@ BEGIN
         -- Recursive member: get references for each referenced entity
         SELECT 
             er.base_entity,
-            CASE 
-                WHEN dr.referenced_entity LIKE 'input.mv_%' THEN REPLACE(dr.referenced_entity, 'input.mv_', 'input.vw_')
-                ELSE dr.referenced_entity
-            END AS referenced_entity,
+            CAST(
+                CASE 
+                    WHEN dr.referenced_entity LIKE 'input.mv_%' THEN REPLACE(dr.referenced_entity, 'input.mv_', 'input.vw_')
+                    ELSE dr.referenced_entity
+                END AS NVARCHAR(256)
+            ) AS referenced_entity,
             dr.referenced_entity_id,
             er.level + 1,
             CAST(er.path + ' -> ' + 
