@@ -1,4 +1,4 @@
-CREATE PROCEDURE dbo.get_all_references
+CREATE OR ALTER PROCEDURE dbo.get_all_references
 (
     @object_name NVARCHAR(256)
 )
@@ -15,7 +15,7 @@ BEGIN
 
     ;WITH EntityReferences AS
     (
-        -- Anchor member: start with the given stored procedure
+        -- Anchor member: start with the given object
         SELECT 
             base_entity = @object_name,
             referenced_entity = @object_name,
@@ -31,12 +31,17 @@ BEGIN
         SELECT 
             er.base_entity,
             CASE 
-                WHEN dr.referenced_entity LIKE 'input.mv_%' THEN 'input.vw_' + SUBSTRING(dr.referenced_entity, LEN('input.mv_') + 1, LEN(dr.referenced_entity))
+                WHEN CHARINDEX('input.mv_', dr.referenced_entity) = 1 THEN 'input.vw_' + SUBSTRING(dr.referenced_entity, LEN('input.mv_') + 1, LEN(dr.referenced_entity))
                 ELSE dr.referenced_entity
             END,
             dr.referenced_entity_id,
             er.level + 1,
-            path = CAST(er.path + '->' + dr.referenced_entity AS NVARCHAR(MAX))
+            path = CAST(er.path + '->' + 
+                        CASE 
+                            WHEN CHARINDEX('input.mv_', dr.referenced_entity) = 1 THEN 'input.vw_' + SUBSTRING(dr.referenced_entity, LEN('input.mv_') + 1, LEN(dr.referenced_entity))
+                            ELSE dr.referenced_entity
+                        END
+                     AS NVARCHAR(MAX))
         FROM 
             EntityReferences er
         CROSS APPLY 
