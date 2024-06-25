@@ -32,15 +32,11 @@ BEGIN
             END AS referenced_entity,
             dr.referenced_entity_id,
             er.level + 1,
-            CAST(er.path + ' -> ' 
-                + CASE 
-                    WHEN dr.referenced_entity LIKE 'input.vw_%' THEN (
-                        SELECT COALESCE(MAX(dr2.referenced_entity), dr.referenced_entity)
-                        FROM sys.sql_expression_dependencies dr2
-                        WHERE dr2.referencing_id = dr.referenced_entity_id
-                    )
+            CAST(er.path + ' -> ' + 
+                CASE 
+                    WHEN dr.referenced_entity LIKE 'input.vw_%' THEN REPLACE(dr.referenced_entity, 'input.mv_', 'input.vw_')
                     ELSE dr.referenced_entity 
-                  END 
+                END 
             AS NVARCHAR(MAX)) AS path
         FROM 
             EntityReferences er
