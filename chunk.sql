@@ -22,6 +22,10 @@ BEGIN
             referenced_entity_id = @object_id,
             level = 0,
             path = CAST(@object_name AS NVARCHAR(MAX))
+        FROM 
+            sys.objects
+        WHERE 
+            OBJECT_ID = @object_id
         UNION ALL
         -- Recursive member: get references for each referenced entity
         SELECT 
