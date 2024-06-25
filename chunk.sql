@@ -26,41 +26,30 @@ BEGIN
         -- Recursive member: get references for each referenced entity
         SELECT 
             er.base_entity,
-            referenced_entity = CAST(
+            referenced_entity = 
                 CASE 
                     WHEN dr.referenced_entity LIKE 'input.mv_%' THEN REPLACE(dr.referenced_entity, 'input.mv_', 'input.vw_')
                     ELSE dr.referenced_entity
-                END AS NVARCHAR(256)
-            ),
+                END,
             referenced_entity_id = 
                 CASE 
                     WHEN dr.referenced_entity LIKE 'input.mv_%' THEN OBJECT_ID(REPLACE(dr.referenced_entity, 'input.mv_', 'input.vw_'))
                     ELSE dr.referenced_entity_id
                 END,
             er.level + 1,
-            path = CAST(er.path + ' -> ' + 
+            path = er.path + ' -> ' + 
                 CASE 
                     WHEN dr.referenced_entity LIKE 'input.mv_%' THEN REPLACE(dr.referenced_entity, 'input.mv_', 'input.vw_')
                     ELSE dr.referenced_entity 
-                END AS NVARCHAR(MAX))
+                END
         FROM 
             EntityReferences er
         CROSS APPLY 
-            (
-                SELECT 
-                    referenced_entity = CAST(
-                        CASE 
-                            WHEN dr.referenced_entity LIKE 'input.mv_%' THEN REPLACE(dr.referenced_entity, 'input.mv_', 'input.vw_')
-                            ELSE dr.referenced_entity
-                        END AS NVARCHAR(256)
-                    ),
-                    referenced_entity_id = 
-                        CASE 
-                            WHEN dr.referenced_entity LIKE 'input.mv_%' THEN OBJECT_ID(REPLACE(dr.referenced_entity, 'input.mv_', 'input.vw_'))
-                            ELSE dr.referenced_entity_id
-                        END
-                FROM 
-                    dbo.get_direct_references(er.referenced_entity_id) dr
+            dbo.get_direct_references(
+                CASE 
+                    WHEN dr.referenced_entity LIKE 'input.mv_%' THEN OBJECT_ID(REPLACE(dr.referenced_entity, 'input.mv_', 'input.vw_'))
+                    ELSE dr.referenced_entity_id
+                END
             ) dr
         WHERE 
             CHARINDEX(
@@ -74,13 +63,12 @@ BEGIN
     SELECT 
         base_entity,
         referenced_entity,
-        level,
         path
     FROM 
         EntityReferences
     WHERE 
         referenced_entity != base_entity
     ORDER BY 
-        base_entity, level, referenced_entity
+        base_entity, path
     OPTION (MAXRECURSION 0); -- Allow unlimited recursion
 END;
