@@ -15,7 +15,7 @@ BEGIN
 
     ;WITH EntityReferences AS
     (
-        -- Anchor member: start with the given stored procedure
+        -- Anchor member: start with the given object
         SELECT 
             base_entity = @object_name,
             referenced_entity = @object_name,
@@ -63,6 +63,7 @@ BEGIN
     SELECT 
         base_entity,
         referenced_entity,
+        level,
         path
     FROM 
         EntityReferences
