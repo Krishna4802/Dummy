@@ -1,4 +1,4 @@
-CREATE PROCEDURE dbo.get_all_references
+CREATE OR ALTER PROCEDURE dbo.get_all_references
 (
     @object_name NVARCHAR(256)
 )
@@ -40,7 +40,7 @@ BEGIN
             er.level + 1,
             path = CAST(er.path + ' -> ' + 
                 CASE 
-                    WHEN dr.referenced_entity LIKE 'input.vw_%' THEN REPLACE(dr.referenced_entity, 'input.mv_', 'input.vw_')
+                    WHEN dr.referenced_entity LIKE 'input.mv_%' THEN REPLACE(dr.referenced_entity, 'input.mv_', 'input.vw_')
                     ELSE dr.referenced_entity 
                 END 
             AS NVARCHAR(MAX))
@@ -49,7 +49,13 @@ BEGIN
         CROSS APPLY 
             dbo.get_direct_references(er.referenced_entity_id) dr
         WHERE 
-            CHARINDEX(dr.referenced_entity, er.path) = 0 -- Avoid circular references
+            CHARINDEX(
+                CASE 
+                    WHEN dr.referenced_entity LIKE 'input.mv_%' THEN REPLACE(dr.referenced_entity, 'input.mv_', 'input.vw_')
+                    ELSE dr.referenced_entity
+                END, 
+                er.path
+            ) = 0 -- Avoid circular references
     )
     SELECT 
         base_entity,
